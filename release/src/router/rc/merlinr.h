@@ -47,10 +47,7 @@ extern int merlinr_toolbox(int argc, char **argv);
 #if defined(EA6700)
 extern int GetPhyStatus2(int verbose);
 #endif
-#if defined(MERLINR_VER_MAJOR_X) && defined(RTAC86U)
-extern void merlinr_toolbox(void);
-extern void merlinr_patch_nvram(void);
-#elif  defined(MERLINR_VER_MAJOR_X) && defined(RTAC88U)
+#if defined(MERLINR_VER_MAJOR_X) && (defined(RTAC86U) || defined(RTAC88U))
 extern void merlinr_toolbox(void);
 extern void merlinr_patch_nvram(void);
 #endif

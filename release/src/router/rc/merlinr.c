@@ -208,7 +208,12 @@ void merlinr_init_done()
 #if defined(EA6700)
 	ea6700_check();
 	doSystem("service restart_wireless");
+#elif defined(MERLINR_VER_MAJOR_X) && (defined(RTAC86U) || defined(RTAC88U))
+	merlinr_patch_nvram();
 #endif
+
+#endif
+
 }
 
 
