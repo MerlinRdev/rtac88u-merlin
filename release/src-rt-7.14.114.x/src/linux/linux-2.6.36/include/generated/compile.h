@@ -1,8 +1,8 @@
-/* This file is auto generated, version 30 */
+/* This file is auto generated, version 2 */
 /* SMP PREEMPT */
 #define UTS_MACHINE "arm"
-#define UTS_VERSION "#30 SMP PREEMPT Wed Jan 8 00:05:00 CST 2020"
-#define LINUX_COMPILE_TIME "00:05:00"
+#define UTS_VERSION "#2 SMP PREEMPT Sat Mar 21 16:43:57 CST 2020"
+#define LINUX_COMPILE_TIME "16:43:57"
 #define LINUX_COMPILE_BY "root"
 #define LINUX_COMPILE_HOST "asus"
 #define LINUX_COMPILE_DOMAIN "(none)"
