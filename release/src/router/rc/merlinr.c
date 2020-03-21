@@ -212,8 +212,6 @@ void merlinr_init_done()
 	merlinr_patch_nvram();
 #endif
 
-#endif
-
 }
 
 
