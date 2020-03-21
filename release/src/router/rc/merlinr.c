@@ -507,7 +507,7 @@ void isCN()
 		add_rc_support("uu_accel");
 }
 #endif
-void exec_uu_merlinr()
+void exec_uu()
 {
 	FILE *fpmodel, *fpmac, *fpuu, *fpurl, *fpmd5, *fpcfg;
 	char buf[128];
@@ -598,7 +598,7 @@ void exec_uu_merlinr()
 }
 #endif
 
-#if !defined(RTAC68U) && !defined(GTAC5300) && !defined(GTAC2900) && !defined(RTAC86U)
+#if !defined(RTAC68U) && !defined(GTAC5300) && !defined(GTAC2900) && !defined(RTAC86U) && !defined(RTAC88U)
 void start_sendfeedback(void)
 {
 

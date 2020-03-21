@@ -16,7 +16,7 @@
 
 
 BIN=smartdns 
-ifeq ($(MERLINR_NAME), $(filter $(MERLINR_NAME), K3 SBRAC1900P SBRAC3200P RTAC68U))
+ifeq ($(MERLINR_NAME), $(filter $(MERLINR_NAME), K3 SBRAC1900P SBRAC3200P RTAC68U RTAC88U RTAC3100 RTAC3200))
 OBJS_LIB=lib/rbtree.o lib/art.o lib/bitops.o lib/radix.o lib/conf.o lib/ifaddrs.o
 else
 OBJS_LIB=lib/rbtree.o lib/art.o lib/bitops.o lib/radix.o lib/conf.o
