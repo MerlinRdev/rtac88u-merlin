@@ -3108,9 +3108,9 @@ skipdbv2-install: skipdbv2
 ifeq ($(MERLINR_NAME),K3)
 k3screenctrl/Makefile:
 	cd k3screenctrl && autoreconf -i -f && CC=$(CC) STRIP=$(STRIP) \
-		CFLAGS=" -std=gnu99 -D_GNU_SOURCE $(EXTRACFLAGS) -I$(TOP)/nvram${BCMEX} -I$(TOP)/shared -I$(SRCBASE)/shared/bcmwifi/include -I$(SRCBASE)/include -I$(KERNEL_HEADER_DIR)" \
-		LDFLAGS="$(EXTRALDFLAGS) -L$(TOP)/nvram${BCMEX} -lnvram -L$(TOP)/shared -lshared" \
-		$(CONFIGURE) --target=arm-linux --host=arm-linux --build=x86_64-linux-gnu --prefix="" --enable-shared --enable-static
+		CFLAGS=" -std=gnu99 -D_GNU_SOURCE $(EXTRACFLAGS) -I$(TOP)/nvram${BCMEX} -I$(TOP)/shared -I$(SRCBASE)/shared/bcmwifi/include -I$(SRCBASE)/include -I$(KERNEL_HEADER_DIR) -I$(TOP)/curl-7.21.7/include -I$(TOP)/json-c -I$(TOP)/openssl/include" \
+		LDFLAGS="$(EXTRALDFLAGS) -L$(TOP)/nvram${BCMEX} -lnvram -L$(TOP)/shared -lshared -L$(TOP)/curl-7.21.7/lib/.libs -lcurl -L$(TOP)/json-c/.libs -ljson-c -L$(TOP)/openssl -lcrypto -lssl -ldl" \
+		$(CONFIGURE) --target=arm-linux --host=arm-linux --build=x86_64-linux-gnu --prefix=""
 
 k3screenctrl: k3screenctrl/Makefile
 	$(MAKE) -C $@ && $(MAKE) $@-stage 
@@ -3828,7 +3828,7 @@ pppd/stamp-h1: kernel_header
 
 pppd: pppd/stamp-h1
 	@$(SEP)
-	@$(MAKE) -C pppd MFLAGS='$(if $(RTCONFIG_IPV6),HAVE_INET6=y,) \
+	@$(MAKE) -C pppd MFLAGS='$(if $(RTCONFIG_IPV6),HAVE_INET6=y,) HAVE_MULTILINK=y USE_TDB=y \
 	EXTRACFLAGS="$(EXTRACFLAGS) -idirafter $(KDIR)/include $(if $(RTCONFIG_VPNC),-DRTCONFIG_VPNC,)"'
 
 pppd-clean:

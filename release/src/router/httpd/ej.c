@@ -184,15 +184,24 @@ translate_lang (char *s, char *e, FILE *f, kw_t *pkw)
 			char *p_PID_STR = NULL;
 			char *PID_STR = nvram_safe_get("productid");
 			char *ODM_PID_STR = nvram_safe_get("odmpid");
+#if defined(R7900P) || defined(SBRAC1900P) || defined(SBRAC3200P) || defined(K3) || defined(K3C) || defined(R8000P) || defined(RAX20) || defined(XWR3100)
+			char *modelname = nvram_safe_get("modelname");
+			int merlinr_len;
+#endif
 			char *pSrc, *pDest;
 			int pid_len, odm_len;
 
 			pid_len = strlen(PID_STR);
 			odm_len = strlen(ODM_PID_STR);
 
+#if defined(R7900P) || defined(SBRAC1900P) || defined(SBRAC3200P) || defined(K3) || defined(K3C) || defined(R8000P) || defined(RAX20) || defined(XWR3100)
+			merlinr_len = strlen(modelname);
+			if (merlinr_len && strcmp(PID_STR, modelname) != 0) {
+				strlcpy(RP_ODM_PID_STR, modelname, merlinr_len+1);
+#else 
 			if (odm_len && strcmp(PID_STR, ODM_PID_STR) != 0) {
-
 				replace_odmpid(ODM_PID_STR, RP_ODM_PID_STR, sizeof(RP_ODM_PID_STR));
+#endif
 				odm_len = strlen(RP_ODM_PID_STR);
 				pSrc  = desc;
 				pDest = pattern1;
@@ -252,7 +261,7 @@ do_ej(char *path, FILE *stream)
 #ifdef TRANSLATE_ON_FLY
 	// Load dictionary file
 	lang = nvram_safe_get("preferred_lang");
-	if(!check_lang_support(lang)){
+	if(!check_lang_support_merlinr(lang)){
 		lang = nvram_default_get("preferred_lang");
 		nvram_set("preferred_lang", lang);
 	}
@@ -429,3 +438,4 @@ ejArgs(int argc, char **argv, char *fmt, ...)
 
 	return arg;
 }
+

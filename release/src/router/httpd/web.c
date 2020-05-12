@@ -292,6 +292,7 @@ extern void unescape(char *s);
 void response_nvram_config(webs_t wp, char *config_name, json_object *res, json_object *root);
 
 extern int get_lang_num();
+extern int get_lang_num_merlinr();
 extern int ej_get_iptvSettings(int eid, webs_t wp, int argc, char_t **argv);
 extern int config_iptv_vlan(char *isp);
 
@@ -1745,6 +1746,9 @@ int skip_log(char *message)
 	if(strstr(message, "mtdump") != NULL) return 1;
 	if(strstr(message, "hostapd") != NULL) return 1;
 	if(strstr(message, "mcastd") != NULL) return 1;
+#endif
+#ifdef RTCONFIG_HND_ROUTER_AX
+	if(strstr(message, "own address as source") != NULL) return 1;
 #endif
 	return 0;
 }
@@ -7447,6 +7451,12 @@ static int check_internetState(char *timeList) {
 						break;
 					}
 				}
+				else if(week_start == 0 && week_end == 0 && system_week == 7) {//for sunday
+					if(hour_start <= system_hour && hour_end > system_hour) {
+						state = 1;
+						break;
+					}
+				}
 			}
 		}
 	}
@@ -10584,6 +10594,7 @@ static int ej_usb_is_exist(int eid, webs_t wp, int argc, char_t **argv){
 #endif
 
 int ej_shown_language_css(int eid, webs_t wp, int argc, char **argv){
+	struct language_table *pLang = NULL;
 	char lang[4];
 	int len;
 #ifdef RTCONFIG_AUTODICT
@@ -10604,7 +10615,7 @@ int ej_shown_language_css(int eid, webs_t wp, int argc, char **argv){
 	memset(lang, 0, 4);
 	strcpy(lang, nvram_safe_get("preferred_lang"));
 
-	if(get_lang_num() == 1){
+	if(get_lang_num_merlinr() == 1){
 		websWrite(wp, "<li style=\"visibility:hidden;\"><dl><a href=\"#\"><dt id=\"selected_lang\"></dt></a>\\n");
 	}
 	else{
@@ -10630,7 +10641,7 @@ int ej_shown_language_css(int eid, webs_t wp, int argc, char **argv){
 				memset(target, 0, sizeof(target));
 				strncpy(target, follow_info, len);
 
-				if (check_lang_support(key) && strcmp(key,lang))
+					if (check_lang_support_merlinr(key) && strcmp(key,lang))
 					websWrite(wp, "<dd><a onclick=\"submit_language(this)\" id=\"%s\">%s</a></dd>\\n", key, target);
 			}
 			else
@@ -11894,7 +11905,7 @@ wps_finish:
 #endif
 			snprintf(event_msg, sizeof(event_msg), HTTPD_GENERIC_MSG, EID_HTTPD_FW_CHECK);
 #if defined(MERLINR_VER_MAJOR_B)
-			system("/usr/sbin/webs_update.sh");
+			doSystem("/usr/sbin/webs_update.sh");
 		}
 #endif
 		else if (!strcmp(action_mode, "firmware_upgrade"))
@@ -11903,7 +11914,7 @@ wps_finish:
 #endif
 			snprintf(event_msg, sizeof(event_msg), HTTPD_GENERIC_MSG, EID_HTTPD_FW_UPGRADE);
 #if defined(MERLINR_VER_MAJOR_B)
-			system("/usr/sbin/webs_upgrade.sh");
+			doSystem("/usr/sbin/webs_upgrade.sh");
 		}
 #endif
 		if (strlen(event_msg))
@@ -12206,7 +12217,7 @@ do_upgrade_post(char *url, FILE *stream, int len, char *boundary)
 	int count, cnt;
 	long filelen;
 	int offset;
-#if defined(K3) || defined(K3C) || defined(SBRAC1900P) || defined(SBRAC3200P)
+#if defined(K3) || defined(K3C) || defined(SBRAC1900P) || defined(SBRAC3200P) || defined(R8000P) || defined(R7900P) || defined(RAX20) || defined(XWR3100)
 	int checkname=0;
 #endif
 #ifndef RTCONFIG_SMALL_FW_UPDATE
@@ -12247,6 +12258,9 @@ do_upgrade_post(char *url, FILE *stream, int len, char *boundary)
 #if defined(K3)
 		if (strstr(buf, "K3"))
 			checkname=1;
+#elif defined(XWR3100)
+		if (strstr(buf, "XWR3100"))
+			checkname=1;
 #elif defined(K3C)
 		if (strstr(buf, "K3C"))
 			checkname=1;
@@ -12256,11 +12270,17 @@ do_upgrade_post(char *url, FILE *stream, int len, char *boundary)
 #elif defined(SBRAC3200P)
 		if (strstr(buf, "SBRAC3200P"))
 			checkname=1;
+#elif defined(R8000P) || defined(R7900P)
+		if (strstr(buf, "R7900P")||strstr(buf, "R8000P"))
+			checkname=1;
+#elif  defined(RAX20)
+		if (strstr(buf, "RAX20"))
+			checkname=1;
 #endif
 		if (!strncasecmp(buf, "Content-Disposition:", 20) && strstr(buf, "name=\"file\""))
 			break;
 	}
-#if defined(K3) || defined(K3C) || defined(SBRAC1900P) || defined(SBRAC3200P)
+#if defined(K3) || defined(K3C) || defined(SBRAC1900P) || defined(SBRAC3200P) || defined(R8000P) || defined(R7900P) || defined(RAX20) || defined(XWR3100)
 	if(checkname==0)
 		goto err;
 #endif
@@ -24519,7 +24539,7 @@ ej_get_wan_lan_status(int eid, webs_t wp, int argc, char **argv)
 	struct json_object *wanLanStatus = NULL;
 	struct json_object *wanLanLinkSpeed = NULL;
 	struct json_object *wanLanCount = NULL;
-#if defined(K3) || defined(R7900P)
+#if defined(K3) || defined(R8000P) || defined(R7900P)
 	fp = popen("rc Get_PhyStatus", "r");
 #else
 	fp = popen("ATE Get_WanLanStatus", "r");
@@ -24803,7 +24823,6 @@ ej_get_wl_channel_list(int eid, webs_t wp, int argc, char **argv, int unit) {
 			}
 		}else{
 			avlbl_bw = avbl_chanspec.bw5g;
-
 			for (i = 0; i < MAX_5G_CHANNEL_LIST_NUM && avbl_chanspec.channelList5g[i] != 0; i++) {
 				snprintf(buf, sizeof(buf), "%d", avbl_chanspec.channelList5g[i]);
 				json_object_array_add(cfg_chan_20m_array, json_object_new_string(buf));

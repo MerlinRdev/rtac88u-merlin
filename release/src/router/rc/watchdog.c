@@ -96,6 +96,8 @@
 #include <auth_common.h>
 #if defined(K3)
 #include "k3.h"
+#elif defined(XWR3100)
+#include "xwr3100.h"
 #elif defined(R7900P) || defined(R8000P)
 #include "r7900p.h"
 #elif defined(K3C)
@@ -4937,7 +4939,7 @@ int confirm_led()
 }
 
 #ifdef SW_DEVLED
-#if defined(RTCONFIG_LED_BTN) || defined(RTCONFIG_WPS_ALLLED_BTN)
+#if defined(RTCONFIG_LED_BTN) || defined(RTCONFIG_WPS_ALLLED_BTN) || defined(RTCONFIG_TURBO_BTN)
 static int swled_alloff_counts = 0;
 static int swled_alloff_x = 0;
 #endif
@@ -6061,10 +6063,22 @@ static void softcenter_sig_check()
 				nvram_set_int("sc_mount_sig", 0);
 			}
 		}
+		if(nvram_match("sc_services_sig", "1")) {
+			if(f_exists("/jffs/softcenter/bin/softcenter.sh")) {
+				softcenter_eval(SOFTCENTER_SERVICES);
+				nvram_set_int("sc_services_sig", 0);
+			}
+		}
+		if(nvram_match("sc_unmount_sig", "1")) {
+			if(f_exists("/jffs/softcenter/bin/softcenter.sh")) {
+				softcenter_eval(SOFTCENTER_UNMOUNT);
+				nvram_set_int("sc_unmount_sig", 0);
+			}
+		}
 	}
 }
 #endif
-#if defined(K3) || defined(K3C) || defined(R8000P) || defined(R7900P) || defined(SBRAC1900P)
+#if defined(K3) || defined(K3C) || defined(R8000P) || defined(R7900P) || defined(SBRAC1900P) || defined(XWR3100)
 #if defined(MERLINR_VER_MAJOR_R) || defined(MERLINR_VER_MAJOR_X)
 static void check_auth_code()
 {
@@ -6072,7 +6086,7 @@ static void check_auth_code()
 	if (i==0)
 #if defined(K3C)
 		i=auth_code_check(nvram_get("et0macaddr"), nvram_get("uuid"));
-#elif defined(K3) || defined(R8000P) || defined(R7900P)
+#elif defined(K3) || defined(R8000P) || defined(R7900P) || defined(XWR3100)
 		i=auth_code_check(cfe_nvram_get("et0macaddr"), nvram_get("uuid"));
 #elif defined(SBRAC1900P)
 		i=auth_code_check(cfe_nvram_get("et2macaddr"), nvram_get("uuid"));
@@ -8244,7 +8258,7 @@ wdp:
 		start_qca_lbd();
 #endif
 #endif
-#if defined(K3) || defined(K3C) || defined(R8000P) || defined(R7900P) || defined(SBRAC1900P) || defined(RAX20)
+#if defined(K3) || defined(K3C) || defined(R8000P) || defined(R7900P) || defined(SBRAC1900P) || defined(XWR3100)
 #if defined(MERLINR_VER_MAJOR_R) || defined(MERLINR_VER_MAJOR_X)
 	check_auth_code();
 #endif

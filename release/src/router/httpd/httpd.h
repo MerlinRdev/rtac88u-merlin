@@ -32,6 +32,7 @@
 #include <dmalloc.h>
 #endif
 #include <rtconfig.h>
+#include "merlinr.h"
 
 /* DEBUG DEFINE */
 #define HTTPD_DEBUG             "/tmp/HTTPD_DEBUG"
@@ -471,3 +472,4 @@ extern void do_dfb_log_file(char *url, FILE *stream);
 extern int is_amas_support(void);
 extern void do_set_fw_path_cgi(char *url, FILE *stream);
 #endif /* _httpd_h_ */
+

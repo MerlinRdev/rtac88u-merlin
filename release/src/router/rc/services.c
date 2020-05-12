@@ -4548,9 +4548,6 @@ start_smartdns(void)
 		killall_tk("smartdns");
 	if (f_exists("/etc/smartdns.conf"))
 		unlink("/etc/smartdns.conf");
-	//doSystem("cp /rom/etc/smartdns.conf /etc/smartdns.conf");
-	//doSystem("echo server $(nvram get wan_dns1_x) >> /etc/smartdns.conf");
-	//doSystem("echo server $(nvram get wan_dns2_x) >> /etc/smartdns.conf");
 	if ((fp = fopen("/etc/smartdns.conf", "w")) == NULL){
 		logmessage(LOGNAME, "start smartdns failed\n");
 		return;
@@ -4559,7 +4556,7 @@ start_smartdns(void)
 	fprintf(fp, "conf-file /etc/blacklist-ip.conf\n");
 	fprintf(fp, "conf-file /etc/whitelist-ip.conf\n");
 	//fprintf(fp, "conf-file /etc/seconddns.conf\n");
-	fprintf(fp, "bind [::]:9053 -no-speed-check\n");
+	fprintf(fp, "bind [::]:9053\n");
 	//fprintf(fp, "bind-tcp [::]:5353\n");
 	fprintf(fp, "cache-size 9999\n");
 	//fprintf(fp, "prefetch-domain yes\n");
@@ -4598,10 +4595,10 @@ start_smartdns(void)
 	}
 	//fprintf(fp, "server %s\n", nvram_get("wan_dns1_x"));
 	//fprintf(fp, "server %s\n", nvram_get("wan_dns2_x"));
-	fprintf(fp, "server-tcp 8.8.8.8\n");
-	fprintf(fp, "server-tcp 8.8.4.4\n");
-	fprintf(fp, "tcp-idle-time 120\n");
-	fprintf(fp, "server-tls 8.8.8.8:853\n");
+	//fprintf(fp, "server-tcp 8.8.8.8\n");
+	//fprintf(fp, "server-tcp 8.8.4.4\n");
+	//fprintf(fp, "tcp-idle-time 120\n");
+	//fprintf(fp, "server-tls 8.8.8.8:853\n");
 	//fprintf(fp, "server-https https://cloudflare-dns.com/dns-query\n");
 	//fprintf(fp, "speed-check-mode none\n");
 	//fprintf(fp, "dualstack-ip-selection no\n");
@@ -4849,7 +4846,7 @@ void start_upnp(void)
 	char *gfn_mode = "no";
 #endif
 
-	if (getpid() != 1) {
+	if (getpid() != 1 && getuid() != 0) {
 		notify_rc("start_upnp");
 		return;
 	}
@@ -5101,7 +5098,7 @@ void start_upnp(void)
 
 void stop_upnp(void)
 {
-	if (getpid() != 1) {
+	if (getpid() != 1 && getuid() != 0) {
 		notify_rc("stop_upnp");
 		return;
 	}
@@ -8544,7 +8541,7 @@ start_services(void)
 #endif
 
 	run_custom_script("services-start", 0, NULL, NULL);
-	
+	nvram_set_int("sc_services_sig", 1);
 	return 0;
 }
 
@@ -10312,12 +10309,8 @@ again:
 		}
 	}
 	else if(strcmp(script, "upgrade") == 0) {
-//we must make sure that usb can umount and do not start skipd again
-//don't delete scripts in init.d
 #if defined(RTCONFIG_SOFTCENTER)
-//#if defined(RTCONFIG_LANTIQ) || defined(RTCONFIG_BCMARM) || defined(RTCONFIG_QCA) || defined(RTCONFIG_RALINK)
-//		doSystem("/usr/sbin/plugin.sh stop");
-//#endif
+//		nvram_set_int("sc_unmount_sig", 1);
 #endif
 		int stop_commit;
 		stop_commit = nvram_get_int(ASUS_STOP_COMMIT);
@@ -13192,7 +13185,6 @@ retry_wps_enr:
 #ifdef HND_ROUTER
 		if (is_router_mode()) start_mcpd_proxy();
 #endif
-		sleep(2);
 		// TODO: function to force ppp connection
 		start_upnp();
 	}
@@ -16792,7 +16784,9 @@ int start_cfgsync(void)
 	char *cfg_client_argv[] = {"cfg_client", NULL};
 	pid_t pid;
 	int ret = 0;
-
+#if defined(MERLINR_VER_MAJOR_B)
+	return 0;
+#endif
 #ifdef RTCONFIG_MASTER_DET
 	if (nvram_match("cfg_master", "1") && (is_router_mode() || access_point_mode()))
 #else
