@@ -36,6 +36,10 @@
 
 #if defined(K3)
 #include "k3.h"
+#elif defined(XWR3100)
+#include "xwr3100.h"
+#elif defined(R7000P)
+#include "r7000p.h"
 #elif defined(R7900P)
 #include "r7900p.h"
 #elif defined(K3C)
@@ -44,6 +48,8 @@
 #include "1900p.h"
 #elif defined(SBRAC3200P)
 #include "ac3200p.h"
+#elif defined(R8500)
+#include "r8500.h"
 #else
 #include "merlinr.h"
 #endif
@@ -302,7 +308,7 @@ static int rctest_main(int argc, char *argv[])
 	}
 #endif
 	else if (strcmp(argv[1], "GetPhyStatus")==0) {
-#if defined(R7900P) || defined(EA6700) 
+#if defined(R8500) || defined(R7900P) || defined(R8000P) || defined(R7000P) || defined(EA6700) 
 		printf("Get Phy status:%d\n", GetPhyStatus2(0));
 #elif defined(K3)
 		printf("Get Phy status:%d\n", GetPhyStatusk3(0));
@@ -310,11 +316,11 @@ static int rctest_main(int argc, char *argv[])
 		printf("Get Phy status:%d\n", GetPhyStatus(0));
 #endif
 	}
-#if defined(K3) || defined(R7900P) || defined(EA6700) 
+#if defined(K3) || defined(R8500) || defined(R7900P) || defined(R8000P) || defined(R7000P) || defined(EA6700) 
 	else if (strcmp(argv[1], "Get_PhyStatus")==0) {
 #if defined(K3)
 		GetPhyStatusk3(1);
-#elif defined(R7900P) || defined(EA6700) 
+#elif defined(R8500) || defined(R7900P) || defined(R8000P) || defined(R7000P) || defined(EA6700) 
 		GetPhyStatus2(1);
 #endif
 	}

@@ -70,7 +70,7 @@ export PATH := $(RELEASEDIR)/tools:$(SRCBASE)/ctools:$(PATH)
 #K3C/K3/SBRAC1900P/SBRAC3200P/R7000/R8000/R7900P/R8000P
 export MERLINR_NAME := RTAC88U
 export MERLINR_VER_MAJOR :=R
-export MERLINR_VER_MINOR :=5.1.0
+export MERLINR_VER_MINOR :=5.1.2b
 export MERLINR_VER := $(MERLINR_VER_MAJOR)$(MERLINR_VER_MINOR)
 export MERLINRVER := $(MERLINR_NAME)_$(MERLINR_VER)
 
@@ -222,7 +222,11 @@ uppercase_B = $(shell echo $(BUILD_NAME) | tr a-z  A-Z)
 lowercase_B = $(shell echo $(BUILD_NAME) | tr A-Z a-z)
 BUILD_TIME := $(shell LC_ALL=C date -u)
 BUILD_USER ?= $(shell whoami)
+ifeq ($(BUILD_USER),paldier)
+BUILD_INFO := MerlinRdev
+else
 BUILD_INFO := $(shell git log --pretty="%h" -n 1|sed -e "s,\([0-9a-z]\{7\}\)[0-9a-z]*,\1,")
+endif
 
 ifeq ($(CONFIG_LINUX26),y)
 mips_rev = $(if $(filter $(MIPS32),r2),MIPSR2,MIPSR1)
@@ -3286,7 +3290,7 @@ define KernelConfig
 	sed -i "/CONFIG_PPP_FILTER/d" $(1); \
 	echo "# CONFIG_PPP_FILTER is not set" >>$(1); \
 	sed -i "/CONFIG_PPP_MULTILINK/d" $(1); \
-	echo "# CONFIG_PPP_MULTILINK is not set" >>$(1); \
+	echo "CONFIG_PPP_MULTILINK=y" >>$(1); \
 if [ "$(TUNEK)" != "n" ]; then \
 	if [ "$(RALINK)" = "y" ] || [ "$(QCA)" = "y" ]; then \
 		sed -i "/CONFIG_NVRAM_SIZE/d" $(1); \

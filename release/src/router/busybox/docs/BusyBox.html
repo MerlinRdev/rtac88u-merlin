@@ -63,16 +63,16 @@
 <pre><code>        [, [[, arp, ash, awk, base64, basename, blkid, cat, chmod, chown,
         chpasswd, clear, cmp, cp, crond, cut, date, dd, devmem, df, dirname,
         dmesg, du, echo, egrep, env, ether-wake, expr, fdisk, fgrep, find,
-        flash_eraseall, flock, free, fsck, fsck.minix, fsync, grep, gunzip,
-        gzip, head, ifconfig, insmod, ionice, kill, killall, klogd, less,
-        ln, logger, login, ls, lsmod, lsusb, md5sum, mdev, mkdir, mknod,
-        mkswap, modprobe, more, mount, mv, netstat, nice, nohup, nslookup,
-        pidof, ping, ping6, printf, ps, pwd, readlink, renice, rm, rmdir,
-        rmmod, route, sed, setconsole, sh, shuf, sleep, sort,
+        flash_eraseall, flock, free, fsck, fsck.minix, fsync, getopt, grep,
+        gunzip, gzip, head, ifconfig, insmod, ionice, kill, killall, klogd,
+        less, ln, logger, login, ls, lsmod, lsusb, md5sum, mdev, mkdir,
+        mknod, mkswap, modprobe, more, mount, mv, netstat, nice, nohup,
+        nslookup, pidof, ping, ping6, printf, ps, pwd, readlink, renice, rm,
+        rmdir, rmmod, route, sed, setconsole, sh, shuf, sleep, sort,
         start-stop-daemon, strings, swapoff, swapon, sync, syslogd, tail,
-        tar, telnetd, test, top, touch, tr, traceroute, traceroute6, true,
-        udhcpc, umount, uname, uniq, unzip, uptime, usleep, vconfig, vi,
-        watch, wc, which, xargs, zcat, zcip</code></pre>
+        tar, tee, telnetd, test, top, touch, tr, traceroute, traceroute6,
+        true, udhcpc, umount, uname, uniq, unzip, uptime, usleep, vconfig,
+        vi, watch, wc, which, xargs, zcat, zcip</code></pre>
 
 <h1 id="COMMAND-DESCRIPTIONS">COMMAND DESCRIPTIONS</h1>
 
@@ -551,6 +551,26 @@ If none of the following actions is specified, -print is assumed
 <p>Write files&#39; buffered blocks to disk</p>
 
 <pre><code>        -d      Avoid syncing metadata</code></pre>
+
+</dd>
+<dt id="getopt"><b>getopt</b></dt>
+<dd>
+
+<p>getopt [OPTIONS] [--] OPTSTRING PARAMS</p>
+
+<pre><code>        -a,--alternative                Allow long options starting with single -
+        -l,--longoptions=LOPT[,...]     Long options to recognize
+        -n,--name=PROGNAME              The name under which errors are reported
+        -o,--options=OPTSTRING          Short options to recognize
+        -q,--quiet                      No error messages on unrecognized options
+        -Q,--quiet-output               No normal output
+        -s,--shell=SHELL                Set shell quoting conventions
+        -T,--test                       Version test (exits with 4)
+        -u,--unquoted                   Don&#39;t quote output</code></pre>
+
+<p>Example:</p>
+
+<p>O=`getopt -l bb: -- ab:c:: &quot;$@&quot;` || exit 1 eval set -- &quot;$O&quot; while true; do case &quot;$1&quot; in -a) echo A; shift;; -b|--bb) echo &quot;B:&#39;$2&#39;&quot;; shift 2;; -c) case &quot;$2&quot; in &quot;&quot;) echo C; shift 2;; *) echo &quot;C:&#39;$2&#39;&quot;; shift 2;; esac;; --) shift; break;; *) echo Error; exit 1;; esac done</p>
 
 </dd>
 <dt id="grep"><b>grep</b></dt>
@@ -1321,6 +1341,17 @@ Other:
         h       Follow symlinks
         X       File with names to exclude
         T       File with names to include</code></pre>
+
+</dd>
+<dt id="tee"><b>tee</b></dt>
+<dd>
+
+<p>tee [-ai] [FILE]...</p>
+
+<p>Copy stdin to each FILE, and also to stdout</p>
+
+<pre><code>        -a      Append to the given FILEs, don&#39;t overwrite
+        -i      Ignore interrupt signals (SIGINT)</code></pre>
 
 </dd>
 <dt id="telnetd"><b>telnetd</b></dt>

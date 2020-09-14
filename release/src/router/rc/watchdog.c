@@ -98,6 +98,8 @@
 #include "k3.h"
 #elif defined(XWR3100)
 #include "xwr3100.h"
+#elif defined(R7000P)
+#include "r7000p.h"
 #elif defined(R7900P) || defined(R8000P)
 #include "r7900p.h"
 #elif defined(K3C)
@@ -106,6 +108,8 @@
 #include "ac1900p.h"
 #elif defined(SBRAC3200P)
 #include "ac3200p.h"
+#elif defined(R8500)
+#include "r8500.h"
 #else
 #include "merlinr.h"
 #endif
@@ -3304,7 +3308,7 @@ void btn_check(void)
 #endif
 	{
 		TRACE_PT("button WIFI_TOG pressed\n");
-#if defined(SBRAC1900P) || defined(SBRAC3200P)
+#if defined(SBRAC1900P) || defined(SBRAC3200P) || defined(R8500) || defined(R7000P)
 		if ((++btn_count > 4) && (btn_pressed_toggle_radio == 0)) {
 #else
 		if (btn_pressed_toggle_radio == 0) {
@@ -3321,7 +3325,7 @@ void btn_check(void)
 	}
 	else{
 		btn_pressed_toggle_radio = 0;
-#if defined(SBRAC1900P) || defined(SBRAC3200P)
+#if defined(SBRAC1900P) || defined(SBRAC3200P) || defined(R8500) || defined(R7000P)
 		btn_count=0;
 #endif
 	}
@@ -4653,6 +4657,8 @@ void fake_etlan_led(void)
 
 #if defined(K3)
 	if (!GetPhyStatusk3(0)) {
+#elif defined(R7000P) || defined(R8500)
+	if (!GetPhyStatus2(0)) {
 #else
 	if (!GetPhyStatus(0)) {
 #endif
@@ -6458,7 +6464,7 @@ void ntevent_intranet_usage_insight()
 	tm = localtime(&now);
 
 	/* send event at 9:00 each Monday */
-	if (tm->tm_wday == 1 && tm->tm_hour == 9) {
+	if (tm->tm_wday == 1 && tm->tm_hour == 9 && tm->tm_min == 0) {
 		snprintf(str, 32, "0x%x", HINT_INTERNET_USAGE_INSIGHT_EVENT);
 		eval("Notify_Event2NC", str, "");
 	}
