@@ -64,9 +64,6 @@ function initial(){
 	showPermissionTitle();
 	if("<% nvram_get("ddns_enable_x"); %>" == 1)
 		document.getElementById("machine_name").innerHTML = "<% nvram_get("ddns_hostname_x"); %>";
-	else
-		document.getElementById("machine_name").innerHTML = "<#Web_Title2#>";
-		
 
 	// show mask
 	if(get_manage_type(PROTOCOL)){
@@ -696,7 +693,7 @@ function applyRule(){
 }
 
 function validForm(){
-	if(!validator.range(document.form.st_max_user, 1, 10)){
+	if(!validator.range(document.form.st_max_user, 1, 99)){
 		document.form.st_max_user.focus();
 		document.form.st_max_user.select();
 		return false;
@@ -831,7 +828,7 @@ function switchUserType(flag){
 						<a class="hintstyle" href="javascript:void(0);" onClick="openHint(17,1);"><#ShareNode_MaximumLoginUser_itemname#></a>
 					</th>
 					<td>
-						<input type="text" name="st_max_user" class="input_3_table" maxlength="1" value="<% nvram_get("st_max_user"); %>" onKeyPress="return validator.isNumber(this, event);" autocorrect="off" autocapitalize="off">
+						<input type="text" name="st_max_user" class="input_3_table" maxlength="2" value="<% nvram_get("st_max_user"); %>" onKeyPress="return validator.isNumber(this, event);" autocorrect="off" autocapitalize="off">
 					</td>
 				</tr>
 				<tr>
@@ -914,7 +911,7 @@ function switchUserType(flag){
 			  		<table width="480"  border="0" cellspacing="0" cellpadding="0" class="FileStatusTitle">
 		  	    		<tr>
 		    	  			<td width="290" height="20" align="left">
-				    			<div id="machine_name" class="machineName"></div>
+				    			<div id="machine_name" class="machineName"><#Web_Title2#></div>
 				    		</td>
 				  		<td>
 				    			<div id="permissionTitle"></div>

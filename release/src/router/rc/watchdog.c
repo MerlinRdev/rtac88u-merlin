@@ -68,6 +68,9 @@
 #include <wlutils.h>
 #endif
 #endif
+#ifdef RTAC88U
+#include <rtk_switch.h>
+#endif
 
 #if defined(RTCONFIG_NOTIFICATION_CENTER)
 #include <libnt.h>
@@ -255,6 +258,8 @@ static void *fn_acts[_NSIG];
 #define REGULAR_DDNS_CHECK	10 //10x30 sec
 static int ddns_check_count = 0;
 static int freeze_duck_count = 0;
+
+static char time_zone_t[32]={0};
 
 static const struct mfg_btn_s {
 	enum btn_id id;
@@ -2253,14 +2258,73 @@ void service_check(void)
 {
 	static int boot_ready = 0;
 
-	if (boot_ready > 6)
+	if (boot_ready > 6) {
+#if defined(RTCONFIG_BCM_7114) || (defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX))
+	    dummy_alert_led_wifi();
+#endif
 		return;
+	}
 
 	if (!nvram_match("success_start_service", "1"))
 		return;
-
-	led_control(LED_POWER, ++boot_ready%2);
+#if defined(RTCONFIG_BCM_7114) || (defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX))
+	int idx;
+	if (dummy_alert_led_pwr()) {
+	    if(boot_ready) {
+		for(idx=0; idx < 6; idx++) {
+		    usleep(100*1000);
+		    led_control(LED_POWER, idx%2);
+		}
+	    }
+	    boot_ready++;
+	}
+	else
+#endif
+		led_control(LED_POWER, ++boot_ready%2);
 }
+
+#ifdef RTAC88U
+int rtl_period = 3, sltime = 3, rtl_fail_max = 1;
+static int rtl_count = 0, rtl_fail = 0;
+
+void rtkl_check()
+{
+	if(rtl_count++ >= rtl_period) {
+		rtl_count = 0;
+
+		if((rtkswitch_ioctl(GET_AWARE, 0, 0)) < 0 || rtkswitch_ioctl(GET_LANPORTS_LINK_STATUS, 0, 0) < 0) 
+			rtl_fail++;
+//#if 0
+		if(nvram_match("rtl_dbg", "1")) {
+			_dprintf("NOW rtl_fail=%d\n", rtl_fail);
+			//_dprintf("Now rtl_fail=%d, force to 2\n", rtl_fail);
+			//rtl_fail = 2;
+		}
+//#endif
+		if(rtl_fail >= rtl_fail_max) {
+			logmessage("rtl_fail", "\nrtkswitch fail access, restart.\n");
+			//kill(1, SIGTERM);
+			_dprintf("rtl_fail:%d, hw reset it\n", rtl_fail);
+
+			set_gpio(10, 0);
+			sleep(1);
+			set_gpio(10, 1);
+
+			sleep(sltime);
+			//if(nvram_match("eval", "1"))
+			//	eval("rtkswitch", "1");
+			//else
+			rtkswitch_ioctl(INIT_SWITCH, 0, 0);
+			rtkswitch_ioctl(INIT_SWITCH_UP, 0, 0);
+			rtkswitch_ioctl(SET_EXT_TXDELAY, 1, 0);
+			rtkswitch_ioctl(SET_EXT_RXDELAY, 4, 0);
+		
+			//nvram_set("rtl_dbg", "0");
+			rtl_fail = 0;
+		}
+	}
+}
+#endif
 
 /* @return:
  * 	0:	not in MFG mode.
@@ -3530,7 +3594,7 @@ void btn_check(void)
 #endif
 #else
 #ifdef RTAC68U
-			if (is_ac66u_v2_series())
+			if (is_ac66u_v2_series() || is_ac68u_v3_series())
 				kill_pidfile_s("/var/run/wanduck.pid", SIGUSR2);
 			else
 #endif
@@ -6035,12 +6099,6 @@ static void softcenter_sig_check()
 {
 	//1=wan,2=nat,3=mount
 	if(nvram_match("sc_installed", "1")){
-		//if(!pids("perpd")){
-			//char *perp_argv[] = { "/jffs/softcenter/perp/perp.sh", "start",NULL };
-			//pid_t pid;
-			//_eval(perp_argv, NULL, 0, &pid);
-			//doSystem("sh /jffs/softcenter/perp/perp.sh start &");
-		//}
 		if(nvram_match("sc_wan_sig", "1")) {
 			if(nvram_match("sc_mount", "1")) {
 				if(f_exists("/jffs/softcenter/bin/softcenter.sh")) {
@@ -6067,6 +6125,9 @@ static void softcenter_sig_check()
 			if(f_exists("/jffs/softcenter/bin/softcenter.sh")) {
 				softcenter_eval(SOFTCENTER_MOUNT);
 				nvram_set_int("sc_mount_sig", 0);
+			} else if(!f_exists("/jffs/softcenter/bin/softcenter.sh") && nvram_match("sc_mount", "1")) {
+				//remount to sdb sdc not sda
+				doSystem("sh /jffs/softcenter/automount.sh &");
 			}
 		}
 		if(nvram_match("sc_services_sig", "1")) {
@@ -6508,7 +6569,6 @@ static void ntevent_disk_usage_check(){
 }
 #endif
 
-#ifdef RTCONFIG_FORCE_AUTO_UPGRADE
 /* DEBUG DEFINE */
 #define FAUPGRADE_DEBUG             "/tmp/FAUPGRADE_DEBUG"
 
@@ -6529,15 +6589,14 @@ static void ntevent_disk_usage_check(){
 
 static void auto_firmware_check()
 {
-	static int period_retry = -1;
-	static int period = 2877;
+	int periodic_check = 0;
+	static int period_retry = 0;
+	static int bootup_check_period = 3;	//wait 3 times(90s) to check
 	static int bootup_check = 1;
-	static int periodic_check = 0;
-	int cycle_manual = nvram_get_int("fw_check_period");
-	int cycle = (cycle_manual > 1) ? cycle_manual : 2880;
+#ifndef RTCONFIG_FW_JUMP
 	char *datestr[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 	time_t now;
-	struct tm *tm;
+	struct tm local;
 	static int rand_hr, rand_min;
 
 	if (!nvram_get_int("ntp_ready")){
@@ -6545,48 +6604,60 @@ static void auto_firmware_check()
 		return;
 	}
 
-	if (!bootup_check && !periodic_check)
-	{
-		time(&now);
-		tm = localtime(&now);
-
-		if ((tm->tm_hour == (2 + rand_hr)) &&	// every 48 hours at 2 am + random offset
-		    (tm->tm_min == rand_min))
-		{
-			periodic_check = 1;
-			period = -1;
-		}
+	if(bootup_check_period > 0){	//bootup wait 90s to check
+		bootup_check_period--;
+		return;
 	}
 
-	if (bootup_check || periodic_check)
-		period = (period + 1) % cycle;
-	else
-		return;
+	time(&now);
+	localtime_r(&now, &local);
 
-	//FAUPGRADE_DBG("period = %d, period_retry = %d, bootup_check = %d", period, period_retry, bootup_check);
-	if (!period || (period_retry < 2 && bootup_check == 0))
+	if(local.tm_hour == (2 + rand_hr) && local.tm_min == rand_min) //at 2 am + random offset to check
+		periodic_check = 1;
+
+	//FAUPGRADE_DBG("periodic_check = %d, period_retry = %d, bootup_check = %d", periodic_check, period_retry, bootup_check);
+#ifndef RTCONFIG_FW_JUMP
+	if (bootup_check || periodic_check || period_retry!=0)
+#endif
 	{
+#if defined(RTCONFIG_ASUSCTRL) && defined(GTAC5300)
+		if (periodic_check)
+			asus_ctrl_sku_update();
+#endif
+#ifdef RTCONFIG_ASD
+		//notify asd to download version file
+		if (pids("asd"))
+		{
+			killall("asd", SIGUSR1);
+		}
+#endif
 		if(nvram_get_int("webs_state_dl_error")){
-			if(!strncmp(datestr[tm->tm_wday], nvram_safe_get("webs_state_dl_error_day"), 3))
+			if(!strncmp(datestr[local.tm_wday], nvram_safe_get("webs_state_dl_error_day"), 3))
 				return;
 			else
 				nvram_set("webs_state_dl_error", "0");
 		}
 
-		period_retry = (period_retry+1) % 3;
-		FAUPGRADE_DBG("period_retry = %d", period_retry);
 		if (bootup_check)
 		{
 			bootup_check = 0;
 			rand_hr = rand_seed_by_time() % 4;
 			rand_min = rand_seed_by_time() % 60;
 			FAUPGRADE_DBG("periodic_check AM %d:%d", 2 + rand_hr, rand_min);
+#ifdef RTCONFIG_AMAS
+			if(nvram_match("re_mode", "1"))
+				return;
+#endif
 		}
+
+		period_retry = (period_retry+1) % 3;
+#endif
 
 		if(!nvram_contains_word("rc_support", "noupdate")){
 #if defined(RTL_WTDOG)
 			stop_rtl_watchdog();
 #endif
+			nvram_set("webs_update_trigger", "watchdog");
 			eval("/usr/sbin/webs_update.sh");
 #if defined(RTL_WTDOG)
 			start_rtl_watchdog();
@@ -6595,7 +6666,7 @@ static void auto_firmware_check()
 #ifdef RTCONFIG_DSL
 		eval("/usr/sbin/notif_update.sh");
 #endif
-
+#ifdef RTCONFIG_FORCE_AUTO_UPGRADE
 		if (nvram_get_int("webs_state_update")
 				&& !nvram_get_int("webs_state_error")
 				&& !nvram_get_int("webs_state_dl_error")
@@ -6616,6 +6687,7 @@ static void auto_firmware_check()
 
 			if (nvram_get_int("webs_state_flag") != 2)
 			{
+				period_retry = 0; //stop retry
 				FAUPGRADE_DBG("no need to upgrade firmware");
 				return;
 			}
@@ -6636,10 +6708,14 @@ static void auto_firmware_check()
 		else{
 			FAUPGRADE_DBG("could not retrieve firmware information: webs_state_update = %d, webs_state_error = %d, webs_state_dl_error = %d, webs_state_info.len = %d", nvram_get_int("webs_state_update"), nvram_get_int("webs_state_error"), nvram_get_int("webs_state_dl_error"), strlen(nvram_safe_get("webs_state_info")));
 		}
+#else
+		period_retry = 0; //stop retry
+#endif
 		return;
 	}
+
 }
-#endif
+
 
 #if defined(RTCONFIG_LP5523) || defined(RTCONFIG_LYRA_HIDE)
 #define FILE_LP5523 "/tmp/lp5523_log"
@@ -7997,6 +8073,10 @@ void watchdog(int sig)
 	service_check();
 #endif
 
+#ifdef RTAC88U
+	rtkl_check();
+#endif
+
 #if defined(RTCONFIG_QCA) && defined(RTCONFIG_WIGIG)
 	wigig_temperatore_check();
 #endif
@@ -8100,7 +8180,9 @@ void watchdog(int sig)
 		     (nvram_match("usb_path2_speed", "12") &&
 		      !nvram_match("usb_path2", "printer") && !nvram_match("usb_path2", "modem")))) {
 			_dprintf("force reset usb pwr\n");
+#ifdef RTCONFIG_USB
 			stop_usb_program(1);
+#endif
 			sleep(1);
 			set_pwr_usb(0);
 			sleep(3);
@@ -8135,8 +8217,18 @@ void watchdog(int sig)
 	if (watchdog_period)
 		return;
 
-#if defined(RTCONFIG_HND_ROUTER_AX) && defined(RTCONFIG_HNDMFG)
+	if(nvram_match("ntp_ready", "1") && !nvram_match("time_zone_x", time_zone_t)){
+		strlcpy(time_zone_t, nvram_safe_get("time_zone_x"), sizeof(time_zone_t));
+		setenv("TZ", nvram_safe_get("time_zone_x"), 1);
+		tzset();
+	}
+
+#if defined(RTCONFIG_HND_ROUTER_AX) && defined(RTCONFIG_BCM_MFG)
 	ate_temperature_record();
+#endif
+
+#if defined(HND_ROUTER) || defined(RTCONFIG_BCM_7114) || defined(RTCONFIG_BCM4708)
+	dump_WlGetDriverStats(0, 1);
 #endif
 
 #ifdef WATCHDOG_PERIOD2
@@ -8214,6 +8306,9 @@ wdp:
 	web_history_save();		// libbwdpi.so
 	AiProtectionMonitor_mail_log();	// libbwdpi.so
 	tm_eula_check();		// libbwdpi.so
+#endif
+#if defined(RTCONFIG_LANTIQ) && defined(RTCONFIG_GN_WBL)
+	GN_WBL_restart();
 #endif
 
 #ifdef RTCONFIG_NOTIFICATION_CENTER
@@ -8321,6 +8416,12 @@ watchdog_main(int argc, char *argv[])
 #ifdef RTCONFIG_BCMWL6
 	if (mediabridge_mode())
 		wlonunit = nvram_get_int("wlc_band");
+#endif
+
+#ifdef RTAC88U
+	rtl_period = nvram_get_int("rtl_period")?:3;
+	sltime = nvram_get_int("sleep")?:3; 
+	rtl_fail_max = nvram_get_int("rtl_fail_max")?:1; 
 #endif
 
 #ifdef RTCONFIG_RALINK

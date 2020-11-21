@@ -838,6 +838,15 @@ function get_isp_settings(isp){
 						$("#contentM").css("display", "none");
 					};
 				});
+
+				$iframe.load(function(){
+					var bodyHeight = $('#contentM').contents().find('body').height();
+					if(bodyHeight > 550 && document.getElementById("contentM").contentWindow.location.pathname.search("QIS_wireless.htm") == -1){
+						var new_height = bodyHeight + 30 + "px";
+						$iframe.css("height", new_height);
+						$("._contentM_qis").css("height", new_height);
+					}
+				});
 			})()
 		</script>
     </td>
@@ -861,7 +870,7 @@ function get_isp_settings(isp){
 	<input type="hidden" name="action_wait" value="5">
 	<input type="hidden" name="modified" value=""> 
 	<!-- system -->                  
-	<input type="hidden" name="machine_name" value="<% nvram_get("machine_name"); %>">
+	<input type="hidden" name="lan_hostname" value="<% nvram_get("lan_hostname"); %>">
 	<input type="hidden" name="time_zone" value="<% nvram_get("time_zone"); %>">
 	
 	

@@ -143,7 +143,7 @@ apply.login = function(){
 			if(isSwMode("RP"))
 				transformWLToGuest();
 
-			if( (isSwMode("RP") && !isSupport("concurrep")) || isSwMode("MB") )
+			if( (isSwMode("RP") && !isSupport("concurrep")) || (isSwMode("MB") && !isSupport("MB_mode_concurrep")) )
 				transformWLCObj();
 
 			$(".btn_login_apply").html(Get_Component_btnLoading);
@@ -362,23 +362,37 @@ apply.iptv = function(){
 		qisPostData.wan10_pppoe_passwd = $("#iptv_pppoe_passwd").val();
 	}
 	else if(qisPostData.switch_wantag == "manual"){
+		var showHints = 0;
+
 		if(isSupport("port2_device")){
-			if(hasBlank([
+			if(rangeCheck([
 				$("#internet_vid"),
+				$("#stb_vid")], 2, 4094))
+				showHints = 1;
+
+			if(rangeCheck([
 				$("#internet_prio"),
-				$("#stb_vid"),
-				$("#stb_prio"),
-			])) return false;
+				$("#stb_prio")], 0, 7, 1))
+				showHints = 1;
+
+			if(showHints)
+				return false;
 		}
 		else{
-			if(hasBlank([
+			if(rangeCheck([
 				$("#internet_vid"),
-				$("#internet_prio"),
 				$("#stb_vid"),
+				$("#voip_vid")], 2, 4094))
+				showHints = 1;
+
+			if(rangeCheck([
+				$("#internet_prio"),
 				$("#stb_prio"),
-				$("#voip_vid"),
-				$("#voip_prio")
-			])) return false;
+				$("#voip_prio")], 0, 7, 1))
+				showHints = 1;
+
+			if(showHints)
+				return false;
 		}
 
 		qisPostData.switch_wan0tagid = $("#internet_vid").val();
@@ -389,6 +403,16 @@ apply.iptv = function(){
 			qisPostData.switch_wan2tagid = $("#voip_vid").val();
 			qisPostData.switch_wan2prio = $("#voip_prio").val();
 		}
+
+		if(qisPostData.switch_wan1tagid == "" && qisPostData.switch_wan2tagid == "")
+			qisPostData.switch_stb_x = "0";
+		else if(qisPostData.switch_wan1tagid == "" && qisPostData.switch_wan2tagid != "")
+			qisPostData.switch_stb_x = "3";
+		else if(qisPostData.switch_wan1tagid != "" && qisPostData.switch_wan2tagid == "")
+			qisPostData.switch_stb_x = "4";
+		else
+			qisPostData.switch_stb_x = "6";
+
 	}
 
 	if(isSupport("gobi")){
@@ -610,7 +634,10 @@ apply.lanStatic = function(){
 			goTo.changePwInTheEnd();
 		}
 		else{
-			transformWLCObj();
+			if(!isSupport("MB_mode_concurrep"))
+				transformWLCObj();
+			else if(isSupport("SMARTREP"))
+				copyWLCObj_wlc1ToWlc2();
 
 			httpApi.nvramSet((function(){
 				qisPostData.action_mode = "apply";
@@ -809,6 +836,16 @@ apply.submitQIS = function(){
 	var linkInternet = httpApi.isConnected();
 	var pppoeAuthFail = httpApi.isPppAuthFail();
 
+	if(isSupport("SMARTREP") && isSwMode("RP")){
+		var wlcPostData = wlcMultiObj.wlc2;
+		$.each(wlcPostData, function(item){wlcPostData[item] = qisPostData[item.replace("2", "1")];});
+		qisPostData.wlc2_band = 2;
+		postDataModel.insert(wlcPostData);
+
+		var wlPostData = wirelessObj.wl2;
+		$.each(wlPostData, function(item){qisPostData[item.replace("2", "2.1")] = qisPostData[item.replace("2", "1.1")];});
+	}
+
 	if(pppoeAuthFail){
 		$(".btn_wireless_apply").html("<#CTL_apply#>");
 		$(".btn_login_apply").html("<#CTL_apply#>");
@@ -878,7 +915,7 @@ apply.yadnsDisable = function(){
 apply.yadnsSetting = function(){
 	httpApi.nvramSet((function(){
 		qisPostData.action_mode = "apply";
-		qisPostData.rc_service = "restart_yadns";
+		qisPostData.rc_service = getRestartService();
 		return qisPostData;
 	})(), (systemVariable.isNewFw == 0) ? goTo.Finish : goTo.Update);
 };
@@ -1121,20 +1158,8 @@ abort.wanType = function(){
 	}
 	else if(systemVariable.detwanResult.wanType == "CHECKING"){
 		systemVariable.manualWanSetup = false;
-
-		setTimeout(function(){
-			if(!isPage("waiting_page")) return false;
-
-			if(systemVariable.detwanResult.wanType == "" || systemVariable.detwanResult.wanType == "CHECKING"){
-				systemVariable.detwanResult = httpApi.detwanGetRet();
-				if(isPage("waiting_page")) setTimeout(arguments.callee, 1000);
-				return false;
-			}
-
-			if(!systemVariable.manualWanSetup) goTo.autoWan();	
-		}, 1000);
-
-		goTo.loadPage("waiting_page", true);	
+		goTo.loadPage("waiting_page", true);
+		goTo.Waiting();
 	}
 	else{
 		if(!systemVariable.forceChangePw)
@@ -1586,7 +1611,10 @@ goTo.Welcome = function(){
 		})
 
 	// start to detect in the background
-	setTimeout(startLiveUpdate, 1000);
+	setTimeout(function(){
+		startDetectLinkInternet();
+		startLiveUpdate();
+	}, 1000);
 };
 
 goTo.advSetting = function(){
@@ -1726,6 +1754,7 @@ goTo.rtMode = function(){
 		qisPostData.lan_dns2_x = "";
 	}
 
+	$("#wlInputField").html("")
 	apply.manual();
 };
 
@@ -1735,7 +1764,7 @@ goTo.rpMode = function(){
 		qisPostData.wlc_psta = 2;
 		qisPostData.wlc_dpsta = 1;
 	}
-	else if((isSdk("7") || isSdk("9")) && isSupport("bcmwifi")){
+	else if(isSupport("amas") && isSupport("bcmwifi")){
 		qisPostData.sw_mode = 3;
 		qisPostData.wlc_psta = 2;
 		qisPostData.wlc_dpsta = 0;
@@ -1751,6 +1780,7 @@ goTo.rpMode = function(){
 		qisPostData.cfg_master = "0";
 	}
 
+	$("#wlInputField").html("")
 	goTo.siteSurvey();
 };
 
@@ -1764,6 +1794,7 @@ goTo.apMode = function(){
 		qisPostData.cfg_master = "1";
 	}
 
+	$("#wlInputField").html("")
 	goTo.GetLanIp();
 };
 
@@ -1784,6 +1815,7 @@ goTo.mbMode = function(){
 		qisPostData.cfg_master = "0";
 	}
 
+	$("#wlInputField").html("")
 	goTo.siteSurvey();
 };
 
@@ -2195,7 +2227,10 @@ goTo.lanDHCP = function(){
 			goTo.changePwInTheEnd();
 		}
 		else{
-			transformWLCObj();
+			if(!isSupport("MB_mode_concurrep"))
+				transformWLCObj();
+			else if(isSupport("SMARTREP"))
+				copyWLCObj_wlc1ToWlc2();
 
 			httpApi.nvramSet((function(){
 				qisPostData.action_mode = "apply";
@@ -3043,7 +3078,7 @@ goTo.skip_pap = function(){
 
 goTo.lanIP_papList = function(){
 	var allPAPSet = true;
-	if(isSwMode("RP") && isSupport("concurrep"))
+	if((isSwMode("RP") && isSupport("concurrep")) || isSupport("SMARTREP") || isSupport("MB_mode_concurrep"))
 		allPAPSet = isAllPAPSet();
 
 	if(allPAPSet) {

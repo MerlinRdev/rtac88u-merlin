@@ -30,6 +30,7 @@
 #include <netdb.h>
 #include <sys/un.h>
 #include <sys/mman.h>
+#include <asm/byteorder.h>
 
 #include <bcmnvram.h>
 #include <bcmdevs.h>
@@ -115,111 +116,6 @@ extern char *get_line_from_buffer(const char *buf, char *line, const int line_si
 	strncpy(line, buf, len);
 
 	return line;
-}
-
-extern char *get_upper_str(const char *const str, char **target){
-	int len, i;
-	char *ptr;
-
-	len = strlen(str);
-	*target = (char *)malloc(sizeof(char)*(len+1));
-	if(*target == NULL){
-		_dprintf("No memory \"*target\".\n");
-		return NULL;
-	}
-	ptr = *target;
-	for(i = 0; i < len; ++i)
-		ptr[i] = toupper(str[i]);
-	ptr[len] = 0;
-
-	return ptr;
-}
-
-extern int upper_strcmp(const char *const str1, const char *const str2){
-	char *upper_str1, *upper_str2;
-	int ret;
-
-	if(str1 == NULL || str2 == NULL)
-		return -1;
-
-	if(get_upper_str(str1, &upper_str1) == NULL)
-		return -1;
-
-	if(get_upper_str(str2, &upper_str2) == NULL){
-		free(upper_str1);
-		return -1;
-	}
-
-	ret = strcmp(upper_str1, upper_str2);
-	free(upper_str1);
-	free(upper_str2);
-
-	return ret;
-}
-
-extern int upper_strncmp(const char *const str1, const char *const str2, int count){
-	char *upper_str1, *upper_str2;
-	int ret;
-
-	if(str1 == NULL || str2 == NULL)
-		return -1;
-
-	if(get_upper_str(str1, &upper_str1) == NULL)
-		return -1;
-
-	if(get_upper_str(str2, &upper_str2) == NULL){
-		free(upper_str1);
-		return -1;
-	}
-
-	ret = strncmp(upper_str1, upper_str2, count);
-	free(upper_str1);
-	free(upper_str2);
-
-	return ret;
-}
-
-extern char *upper_strstr(const char *const str, const char *const target){
-	char *upper_str, *upper_target;
-	char *ret;
-	int len;
-
-	if(str == NULL || target == NULL)
-		return NULL;
-
-	if(get_upper_str(str, &upper_str) == NULL)
-		return NULL;
-
-	if(get_upper_str(target, &upper_target) == NULL){
-		free(upper_str);
-		return NULL;
-	}
-
-	ret = strstr(upper_str, upper_target);
-	if(ret == NULL){
-		free(upper_str);
-		free(upper_target);
-		return NULL;
-	}
-
-	if((len = upper_str-ret) < 0)
-		len = ret-upper_str;
-
-	free(upper_str);
-	free(upper_target);
-
-	return (char *)(str+len);
-}
-
-int stricmp(char const *a, char const *b, int len)
-{
-	for (;len--; a++, b++) {
-		int d = tolower(*a) - tolower(*b);
-		if (d != 0 || !*a)
-			return d;
-	}
-
-	return 0;
 }
 
 #ifdef HND_ROUTER
@@ -1416,7 +1312,7 @@ enum wan_unit_e get_first_connected_public_wan_unit(void)
 
 		snprintf(wan_ip, sizeof(wan_ip), "wan%d_ipaddr", i);
 		wan_public = is_private_subnet(nvram_safe_get(wan_ip));
-		if(wan_public) // wan_public = 0 is public IP, wan_public = 1, 2, 3 is private IP.
+		if(wan_public) // wan_public = 0 is public IP, wan_public = 1, 2, 3, 4 is private IP.
 			continue;
 		wan_unit = i;
 		break;
@@ -2496,13 +2392,24 @@ void bcmvlan_models(int model, char *vlan)
 
 char *get_productid(void)
 {
-	char *productid = nvram_safe_get("productid");
 #ifdef RTCONFIG_ODMPID
-	char *odmpid = nvram_safe_get("odmpid");
-	if (*odmpid)
-		productid = odmpid;
+	char *productid = nvram_safe_get("odmpid");
+
+	if (*productid)
+		return productid;
 #endif
-	return productid;
+
+	return nvram_safe_get("productid");
+}
+
+char *get_lan_hostname(void)
+{
+	char *hostname = nvram_safe_get("lan_hostname");
+
+	if (*hostname && is_valid_hostname(hostname))
+		return hostname;
+
+	return get_productid();
 }
 
 int backup_rx;
@@ -2791,34 +2698,33 @@ unsigned int netdev_calc(char *ifname, char *ifname_desc, unsigned long long *rx
 	return 0;
 }
 
-// 0: Not private subnet, 1: A class, 2: B class, 3: C class.
+/* 0: Not private subnet
+ * 1: A class, 2: B class, 3: C class, 4: rfc6598 */
 int is_private_subnet(const char *ip)
 {
-	unsigned long long ip_num;
-	unsigned long long A_class_start, A_class_end;
-	unsigned long long B_class_start, B_class_end;
-	unsigned long long C_class_start, C_class_end;
+	const static struct {
+		in_addr_t network;
+		in_addr_t netmask;
+	} classes[] = {
+		{ __constant_htonl(0xc0a80000), __constant_htonl(0xffff0000) }, /* 192.168.0.0/16 */
+		{ __constant_htonl(0xac100000), __constant_htonl(0xfff00000) }, /* 172.16.0.0/12 */
+		{ __constant_htonl(0x0a000000), __constant_htonl(0xff000000) }, /* 10.0.0.0/8 */
+		{ __constant_htonl(0x64400000), __constant_htonl(0xffc00000) }, /* 100.64.0.0/10 */
+	};
+	struct in_addr sin;
+	int i;
 
-	if(ip == NULL)
+	if (ip == NULL)
 		return 0;
 
-	A_class_start = inet_network("10.0.0.0");
-	A_class_end = inet_network("10.255.255.255");
-	B_class_start = inet_network("172.16.0.0");
-	B_class_end = inet_network("172.31.255.255");
-	C_class_start = inet_network("192.168.0.0");
-	C_class_end = inet_network("192.168.255.255");
+	if (inet_pton(AF_INET, ip, &sin) > 0) {
+		for (i = 0; i < ARRAY_SIZE(classes); i++) {
+			if ((sin.s_addr & classes[i].netmask) == classes[i].network)
+				return i + 1;
+		}
+	}
 
-	ip_num = inet_network(ip);
-
-	if(ip_num > A_class_start && ip_num < A_class_end)
-		return 1;
-	else if(ip_num > B_class_start && ip_num < B_class_end)
-		return 2;
-	else if(ip_num > C_class_start && ip_num < C_class_end)
-		return 3;
-	else
-		return 0;
+	return 0;
 }
 
 // clean_mode: 0~3, clean_time: 0~(LONG_MAX-1), threshold(KB): 0: always act, >0: act when lower than.
@@ -4605,6 +4511,88 @@ int isValid_digit_string(const char *string) {
 	return 1;
 }
 
+/*
+ * Validate a char is not valid for a host hame
+ * @name:	pointer to  a string.
+ */
+static int is_invalid_char_for_hostname(int c)
+{
+	int ret = 0;
+
+	if (c < 0x20)
+		ret = 1;
+#if 0
+	else if (c >= 0x21 && c <= 0x2c)	/* !"#$%&'()*+, */
+		ret = 1;
+#else	/* allow '+' */
+	else if (c >= 0x21 && c <= 0x2a)	/* !"#$%&'()* */
+		ret = 1;
+	else if (c == 0x2c)			/* , */
+		ret = 1;
+#endif
+	else if (c >= 0x2e && c <= 0x2f)	/* ./ */
+		ret = 1;
+	else if (c >= 0x3a && c <= 0x40)	/* :;<=>?@ */
+		ret = 1;
+#if 0
+	else if (c >= 0x5b && c <= 0x60)	/* [\]^_ */
+		ret = 1;
+#else	/* allow '_' */
+	else if (c >= 0x5b && c <= 0x5e)	/* [\]^ */
+		ret = 1;
+	else if (c == 0x60)			/* ` */
+		ret = 1;
+#endif
+	else if (c >= 0x7b)			/* {|}~ DEL */
+		ret = 1;
+#if 0
+	printf("%c (0x%02x) is %svalid for hostname\n", c, c, (ret == 0) ? "  " : "in");
+#endif
+	return ret;
+}
+
+/*
+ * Validate a string is valid host name
+ * @name:	pointer to  a string.
+ */
+int is_valid_hostname(const char *name)
+{
+	const char *p;
+	int c;
+
+	if (!name)
+		return 0;
+
+	for (p = name; (c = *p); p++) {
+		if (is_invalid_char_for_hostname(c))
+			return 0;
+	}
+
+	return p - name;
+}
+
+/*
+ * Validate a string is valid domain name
+ * @name:	pointer to  a string.
+ */
+int is_valid_domainname(const char *name)
+{
+	const char *p;
+	int c;
+
+	if (!name)
+		return 0;
+
+	for (p = name; (c = *p); p++) {
+		if (((c | 0x20) < 'a' || (c | 0x20) > 'z') &&
+		    ((c < '0' || c > '9')) &&
+		    (c != '.' && c != '-' && c != '_'))
+			return 0;
+	}
+
+	return p - name;
+}
+
 #if defined(RTCONFIG_AMAS)
 /*
 	define amas_lib trigger function
@@ -4793,3 +4781,20 @@ int get_index_page(char *page, int size)
 	return 0;
 }
 
+/*
+	general API to check wss supported interface
+*/
+int amazon_wss_ap_isolate_support(char *prefix)
+{
+	char gn_wbl_en[32] = {0};
+
+	/* not amazon_wss interface */
+	if (strcmp(prefix, "wl0.2_")) return 0;
+
+	/* amazon_ffs is enabled */
+	snprintf(gn_wbl_en, sizeof(gn_wbl_en), "%sgn_wbl_enable", prefix);
+	if (nvram_match(gn_wbl_en, "1")) return 1;
+
+	/* mismatch */
+	return 0;
+}

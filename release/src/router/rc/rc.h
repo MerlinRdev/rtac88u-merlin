@@ -65,6 +65,9 @@
 #include "pc.h"
 #endif
 
+#ifdef RTCONFIG_INTERNETCTRL
+#include "ic.h"
+#endif
 
 #define IFUP (IFF_UP | IFF_RUNNING | IFF_BROADCAST | IFF_MULTICAST)
 
@@ -170,6 +173,26 @@ extern int g_reboot;
 extern int wan_phyid;
 #if defined(RTCONFIG_JFFS2) || defined(RTCONFIG_JFFSV1) || defined(RTCONFIG_BRCM_NAND_JFFS2)
 extern int jffs2_fail;
+#endif
+
+#if defined(RTCONFIG_AMAS)
+static inline int is_cap(){
+#ifdef RTCONFIG_MASTER_DET
+	if (nvram_match("cfg_master", "1") && (is_router_mode() || access_point_mode()))
+#else
+	if (is_router_mode())
+#endif
+		return 1;
+
+	return 0;
+}
+
+static inline char *node_str(){
+	if(is_cap())
+		return "C";
+
+	return "R";
+}
 #endif
 
 #ifdef RTCONFIG_BCMARM
@@ -656,13 +679,14 @@ static inline const void *req_fw_hook(const char *filename, size_t *new_size) { 
 
 /* board API under sysdeps/init-broadcom.c sysdeps/broadcom sysdeps/tcode_brcm.c */
 extern void init_others(void);
-#if defined(CONFIG_BCMWL5) || defined(RTCONFIG_WIRELESSREPEATER)
+#if defined(CONFIG_BCMWL5)
 extern int is_ure(int unit);
 #endif
 #ifdef CONFIG_BCMWL5
 /* The below macros handle endian mis-matches between wl utility and wl driver. */
 extern bool g_swap;
 #define htod32(i) (g_swap?bcmswap32(i):(uint32)(i))
+#define dtoh64(i) (g_swap?bcmswap64(i):(uint64)(i))
 #define dtoh32(i) (g_swap?bcmswap32(i):(uint32)(i))
 #define dtoh16(i) (g_swap?bcmswap16(i):(uint16)(i))
 #define dtohchanspec(i) (g_swap?dtoh16(i):i)
@@ -694,6 +718,8 @@ extern int wl_subband(char *wif, int idx);
 #if defined(RTCONFIG_BCM_7114) || defined(HND_ROUTER)
 extern void check_4366_dummy(void);
 extern void check_4366_fabid(void);
+extern void dummy_alert_led_wifi(void);
+extern int dummy_alert_led_pwr(void);
 #endif
 extern void wl_dfs_radarthrs_config(char *ifname, int unit);
 #if defined(RTCONFIG_BCM7) || defined(RTCONFIG_BCM_7114) || defined(HND_ROUTER)
@@ -757,10 +783,11 @@ extern void hnd_nat_ac_init(int bootup);
 extern void setLANLedOn(void);
 extern void setLANLedOff(void);
 extern int mtd_erase_image_update();
+extern int mtd_erase_misc2();
 extern int wait_to_forward_state(char *ifname);
-#ifndef RTCONFIG_HND_ROUTER_AX
-extern void wl_fail_db(int unit, int state, int count);
 #endif
+#if (defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX)) || defined(RTCONFIG_BCM_7114)
+extern void wl_fail_db(int unit, int state, int count);
 #endif
 #ifdef RTCONFIG_BCMWL6
 extern int hw_vht_cap();
@@ -772,11 +799,16 @@ void set_dpsta_ifnames();
 #ifdef RTAC86U
 extern void hnd_cfe_check();
 #endif
+#if defined(HND_ROUTER) || defined(RTCONFIG_BCM_7114) || defined(RTCONFIG_BCM4708)
+extern void wl_driver_mode_update(void);
+extern void dump_WlGetDriverStats(int fb, int count);
+#endif
 #ifdef RTCONFIG_RGBLED
 extern int setRogRGBLedTest(int RGB);
 #endif
 extern void hnd_set_hwstp(void);
 #endif
+extern int wl_max_no_vifs(int unit);
 
 #ifdef RTCONFIG_AMAS
 enum {
@@ -931,7 +963,7 @@ extern int dpdt_ant_main(int argc, char *argv[]);
 extern int thermal_txpwr_main(int argc, char *argv[]);
 extern void start_wan(void);
 extern void stop_wan(void);
-extern int add_multi_routes(void);
+extern int add_multi_routes(int check_link);
 extern int add_routes(char *prefix, char *var, char *ifname);
 extern int del_routes(char *prefix, char *var, char *ifname);
 extern void start_wan_if(int unit);
@@ -1071,6 +1103,11 @@ extern void config_blocking_redirect(FILE *fp);
 // pc_tmp.c
 #ifdef RTCONFIG_PARENTALCTRL
 extern int pc_tmp_main(int argc, char *argv[]);
+#endif
+
+/* ic.c */
+#ifdef RTCONFIG_INTERNETCTRL
+extern int ic_main(int argc, char *argv[]);
 #endif
 
 // ppp.c
@@ -1269,6 +1306,8 @@ extern void restart_fanctrl(void);
 #endif
 
 #if defined(RTCONFIG_BCMWL6) && defined(RTCONFIG_PROXYSTA)
+// arp.c
+extern int send_arpreq(void);
 // psta_monitor.c
 extern int psta_monitor_main(int argc, char *argv[]);
 #endif
@@ -1317,8 +1356,6 @@ extern int ntp_main(int argc, char *argv[]);
 
 // common.c
 extern void usage_exit(const char *cmd, const char *help) __attribute__ ((noreturn));
-#define modprobe(mod, args...) ({ char *argv[] = { "modprobe", "-s", mod, ## args, NULL }; _eval(argv, NULL, 0, NULL); })
-extern int modprobe_r(const char *mod);
 #define xstart(args...)	_xstart(args, NULL)
 extern int _xstart(const char *cmd, ...);
 extern void run_nvscript(const char *nv, const char *arg1, int wtime);
@@ -1516,9 +1553,6 @@ extern int update_wan_leds(int wan_unit, int link_wan_unit);
 int LanWanLedCtrl(void);
 #endif
 extern int wanduck_main(int argc, char *argv[]);
-#ifdef RTCONFIG_CONNDIAG
-extern int conn_diag_main(int argc, char *argv[]);
-#endif
 
 // tcpcheck.c
 extern int setupsocket(int sock);
@@ -1529,6 +1563,7 @@ extern void subtime(struct timeval *a, struct timeval *b, struct timeval *res);
 extern void setupset(fd_set *theset, int *numfds);
 extern void waitforconnects();
 extern int tcpcheck_main(int argc, char *argv[]);
+extern int tcpcheck_retval(int timeout, char *host_port);
 
 // readmem.c
 #ifdef BUILD_READMEM
@@ -1672,10 +1707,15 @@ extern void update_macfilter_relist();
 
 extern int start_nat_rules(void);
 extern int stop_nat_rules(void);
-extern void stop_syslogd(void);
-extern void stop_klogd(void);
 extern int start_syslogd(void);
+extern void stop_syslogd(void);
+#ifdef RTCONFIG_RSYSLOGD
+static inline void reload_syslogd(void) {};
+#else
+extern void reload_syslogd(void);
 extern int start_klogd(void);
+extern void stop_klogd(void);
+#endif
 extern int start_logger(void);
 extern void start_dfs(void);
 extern void handle_notifications(void);
@@ -1784,7 +1824,7 @@ extern int firmware_check_main(int argc, char *argv[]);
 #ifdef RTCONFIG_HTTPS
 extern int rsasign_check_main(int argc, char *argv[]);
 extern int rsarootca_check_main(int argc, char *argv[]);
-extern char *pwdec(const char *input, char *output);
+extern char *pwdec(const char *input, char *output, int output_len);
 extern char *pwdec_dsl(char *input);
 #endif
 #ifdef RTCONFIG_ISP_CUSTOMIZE
@@ -1956,6 +1996,8 @@ extern void stop_cfgsync(void);
 extern int start_cfgsync(void);
 extern void send_event_to_cfgmnt(int event_id);
 #ifdef RTCONFIG_CONNDIAG
+extern int conn_diag_main(int argc, char *argv[]);
+extern int diag_data_main(int argc, char *argv[]);
 extern void stop_conn_diag(void);
 extern void start_conn_diag(void);
 #endif
@@ -2013,6 +2055,7 @@ extern void extract_data(char *path, FILE *fp);
 extern int merge_log(char *path, int len);
 extern void stop_dpi_engine_service(int forced);
 extern void start_dpi_engine_service();
+extern void start_wrs_wbl_service();
 extern void setup_wrs_conf();
 extern void auto_sig_check();
 extern void sqlite_db_check();
@@ -2037,6 +2080,10 @@ extern int get_anomaly_main(char *cmd);
 extern int get_app_patrol_main();
 extern void web_history_save();
 extern void AiProtectionMonitor_mail_log();
+extern int get_fw_mesh_user(void **output, unsigned int *buf_used_len);
+extern int get_fw_mesh_extender(void **output, unsigned int *buf_used_len);
+extern int mesh_set_user(char *macstr, char *ipstr, uint8_t action);
+extern int mesh_set_extender(char *macstr, uint8_t action);
 #endif
 
 /* amas_lib.c */
@@ -2219,6 +2266,9 @@ enum LED_STATUS
 #ifdef RTCONFIG_TUNNEL
 extern void start_mastiff();
 extern void stop_mastiff();
+extern void start_aae_sip_conn(int sdk_init);
+extern void stop_aae_sip_conn(int sdk_deinit);
+extern void stop_aae_gently();
 #endif
 #ifdef RTCONFIG_HAPDEVENT
 extern int start_hapdevent(void);
@@ -2419,6 +2469,29 @@ extern int asus_ctrl_ignore();
 extern int asus_ctrl_write(char *asusctrl);
 #else
 static inline int asus_ctrl_write(char *asusctrl) { return 0; }
+#endif
+extern void asus_ctrl_sku_check();
+#ifdef GTAC5300
+extern void asus_ctrl_sku_update();
+#endif
+#endif
+
+#ifdef RTCONFIG_BCMARM
+typedef struct WiFi_temperature_s {
+	double t2g;
+	double t5g;
+	double t5g2;
+} WiFi_temperature_t;
+double get_cpu_temp();
+int get_wifi_temps(WiFi_temperature_t *wt);
+#endif /* RTCONFIG_BCMARM */
+
+#ifdef RTCONFIG_GN_WBL
+extern void add_GN_WBL_EBTbrouteRule();
+extern void add_GN_WBL_ChainRule(FILE *fp);
+extern void add_GN_WBL_ForwardRule(FILE *fp);
+#ifdef RTCONFIG_LANTIQ
+extern void GN_WBL_restart();
 #endif
 #endif
 

@@ -138,6 +138,14 @@ define(function(){
 				] 
 			},
 			{
+				menuName: "Open NAT",
+				index: "menu_OpenNAT", 
+				tab: [
+					{url: "GameProfile.asp", tabName: "Open NAT"},
+					{url: "NULL", tabName: "__INHERIT__"}
+				] 
+			},
+			{
 				menuName: "<#Menu_usb_application#>",
 				index: "menu_APP", 
 				tab: [
@@ -280,6 +288,7 @@ define(function(){
 					{url: "Advanced_PerformanceTuning_Content.asp", tabName: "Fan tuning"},
 					{url: "Advanced_ADSL_Content.asp", tabName: "<#menu_dsl_setting#>"},
 					{url: "Advanced_Feedback.asp", tabName: "<#menu_feedback#>"},
+					{url: "Feedback_Info.asp", tabName: "__INHERIT__"},
 					{url: "Advanced_SNMP_Content.asp", tabName: "SNMP"},
 					{url: "Advanced_TR069_Content.asp", tabName: "TR-069"},
 					{url: "Advanced_Notification_Content.asp", tabName: "Notification"},
@@ -379,8 +388,16 @@ define(function(){
 					retArray.push("menu_VLAN");
 				}
 
-				if(!wtfast_support) {
-					retArray.push("menu_GameBoost");
+				if(!gameMode_support) {
+					retArray.push("menu_OpenNAT");
+				}
+
+				if(!rog_support){
+					for(i=0; i<menuTree.list.length; i++){
+						if(menuTree.list[i].menuName == '<#Game_Boost#>'){
+							menuTree.list[i].menuName = 'Game';
+						}
+					}
 				}
 
 				if(!uu_support){
@@ -401,6 +418,7 @@ define(function(){
 					retArray.push("menu_Firewall");
 					retArray.push("menu_ParentalControl");
 					retArray.push("menu_QoS");
+					retArray.push("menu_OpenNAT");
 
 					if(!userRSSI_support){
 						retArray.push("menu_Wireless");
@@ -427,6 +445,7 @@ define(function(){
 					retArray.push("menu_Firewall");
 					retArray.push("menu_ParentalControl");
 					retArray.push("menu_QoS");
+					retArray.push("menu_OpenNAT");
 
 					if(ifttt_support || alexa_support){
 						retArray.push("menu_Alexa_IFTTT");
@@ -447,6 +466,7 @@ define(function(){
 					retArray.push("menu_Firewall");
 					retArray.push("menu_ParentalControl");
 					retArray.push("menu_QoS");
+					retArray.push("menu_OpenNAT");
 
 					if(ifttt_support || alexa_support){
 						retArray.push("menu_Alexa_IFTTT");
@@ -515,6 +535,7 @@ define(function(){
 
 				if(!frs_feedback_support) {		
 					retArray.push("Advanced_Feedback.asp");
+					retArray.push("Feedback_Info.asp");
 				}
 
 				if(noftp_support){
@@ -603,7 +624,7 @@ define(function(){
 					retArray.push("AdaptiveQoS_ROG.asp");
 				}
 
-				if(!wtfast_support){
+				if(!wtfast_support && !gameMode_support){
 					retArray.push("GameBoost.asp");
 				}
 
